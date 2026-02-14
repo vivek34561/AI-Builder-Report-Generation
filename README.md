@@ -65,3 +65,21 @@ Outputs:
 - `outputs/step2/thermal_chunks.json`
 - `outputs/step2/inspection_facts.json`
 - `outputs/step2/thermal_facts.json`
+
+## Merge + De-dup + Conflict Detection (Area-Level)
+
+Purpose: combine inspection + thermal facts **by area**, remove duplicate observations, and flag conflicts (without resolving them).
+
+Rules:
+- Group facts by `area` (e.g., Bedroom wall, Bathroom ceiling)
+- Merge inspection and thermal entries for the same area
+- De-duplicate observations using string similarity
+- Detect conflicts (example): inspection indicates **no moisture**, thermal indicates **moisture anomaly**
+- Conflict handling: do **not** auto-resolve; store both statements and mark `conflict_detected = true`
+
+### Run
+
+`python run_merge_area_data.py --inspection-facts outputs/step2/inspection_facts.json --thermal-facts outputs/step2/thermal_facts.json --out outputs/merged`
+
+Output:
+- `outputs/merged/merged_area_data.json`
