@@ -144,6 +144,15 @@ ENV/
 env.bak/
 venv.bak/
 
+# Local venv committed in this assignment workspace
+myenv/
+
+# Generated artifacts
+outputs/
+*.png
+*.jpg
+*.jpeg
+
 # Spyder project settings
 .spyderproject
 .spyproject
