@@ -16,6 +16,12 @@ pydantic>=2.6.0
 # Frontend checker
 streamlit>=1.33.0
 
-# LLM extraction (Step 2)
+# LLM extraction (Step 2, 3, 4)
 groq>=0.31.0
 
+# Environment variables
+python-dotenv>=1.0.0
+
+# Step 4: PDF generation (optional)
+markdown>=3.5.0
+weasyprint>=60.0

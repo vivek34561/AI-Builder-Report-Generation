@@ -30,7 +30,9 @@ def _extract_with_retries(*, model: str, prompt: str, schema_name: str, output_m
     client = Groq(api_key=api_key)
 
     last_text: str | None = None
-    for attempt in range(1, 4):
+    last_error: str | None = None
+    
+    for attempt in range(1, 6):  # Increased to 5 retries
         messages = [
             {
                 "role": "system",
@@ -50,6 +52,7 @@ def _extract_with_retries(*, model: str, prompt: str, schema_name: str, output_m
                     "content": (
                         "Your previous output did not validate. "
                         "Fix it to be valid JSON matching the schema exactly. "
+                        f"Error: {last_error}\n"
                         f"Previous output:\n{last_text}"
                     ),
                 }
@@ -59,32 +62,117 @@ def _extract_with_retries(*, model: str, prompt: str, schema_name: str, output_m
             model=model,
             messages=messages,
             temperature=0,
+            max_tokens=8000,  # Prevent truncation of large JSON responses
         )
 
         text = (resp.choices[0].message.content or "").strip()
+        
+        # Strip markdown code fences if present
+        if text.startswith("```"):
+            lines = text.split("\n")
+            # Remove first line if it's a code fence
+            if lines[0].startswith("```"):
+                lines = lines[1:]
+            # Remove last line if it's a code fence
+            if lines and lines[-1].strip() == "```":
+                lines = lines[:-1]
+            text = "\n".join(lines).strip()
+        
         last_text = text
 
         try:
             data = json.loads(text)
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as e:
+            last_error = f"JSON decode error: {str(e)}"
+            print(f"Attempt {attempt}: {last_error}")
+            print(f"Response preview: {text[:500]}...")
             continue
 
         try:
             return output_model.model_validate(data)
-        except ValidationError:
+        except ValidationError as e:
+            last_error = f"Validation error: {str(e)}"
+            print(f"Attempt {attempt}: {last_error}")
+            print(f"Data preview: {json.dumps(data, indent=2)[:500]}...")
             continue
 
-    raise RuntimeError(
-        f"Groq extraction failed to produce valid {schema_name} JSON after retries. "
+    # If all retries failed, provide detailed error information
+    error_msg = (
+        f"Groq extraction failed to produce valid {schema_name} JSON after {attempt} retries.\n"
+        f"Last error: {last_error}\n"
+        f"Last response preview: {last_text[:1000] if last_text else 'None'}...\n"
         "Try reducing max_pages/chunk size or using a larger model."
     )
+    raise RuntimeError(error_msg)
 
 
 def extract_inspection_facts(
     *,
     chunks: list[TextChunk],
-    model: str = "llama-3.1-70b-versatile",
+    model: str = "openai/gpt-oss-120b",
 ) -> InspectionFactsDoc:
+    # Handle empty chunks gracefully
+    if not chunks:
+        print("Warning: No inspection chunks provided, returning empty InspectionFactsDoc")
+        return InspectionFactsDoc(
+            source="inspection_report",
+            facts=[],
+            missing_or_unclear_information=["No inspection data available"]
+        )
+    
+    # Validate chunk size and split if necessary
+    total_text_length = sum(len(chunk.text) for chunk in chunks)
+    
+    # If input is too large, process in batches
+    if total_text_length > 12000:
+        print(f"Warning: Inspection chunks total {total_text_length} characters. "
+              f"Splitting into batches to prevent truncation.")
+        
+        # Split chunks into batches
+        batches: list[list[TextChunk]] = []
+        current_batch: list[TextChunk] = []
+        current_length = 0
+        
+        for chunk in chunks:
+            chunk_len = len(chunk.text)
+            if current_batch and current_length + chunk_len > 12000:
+                batches.append(current_batch)
+                current_batch = [chunk]
+                current_length = chunk_len
+            else:
+                current_batch.append(chunk)
+                current_length += chunk_len
+        
+        if current_batch:
+            batches.append(current_batch)
+        
+        print(f"Processing {len(batches)} batches of inspection chunks...")
+        
+        # Process each batch and merge results
+        all_facts = []
+        all_missing = []
+        
+        for i, batch in enumerate(batches, 1):
+            print(f"Processing inspection batch {i}/{len(batches)}...")
+            batch_result = _extract_inspection_facts_single(batch, model)
+            all_facts.extend(batch_result.facts)
+            all_missing.extend(batch_result.missing_or_unclear_information)
+        
+        return InspectionFactsDoc(
+            source="inspection_report",
+            facts=all_facts,
+            missing_or_unclear_information=list(set(all_missing))  # Remove duplicates
+        )
+    
+    # Normal processing for smaller inputs
+    return _extract_inspection_facts_single(chunks, model)
+
+
+def _extract_inspection_facts_single(
+    chunks: list[TextChunk],
+    model: str = "openai/gpt-oss-120b",
+) -> InspectionFactsDoc:
+    """Helper function to extract inspection facts from a single batch of chunks."""
     schema = InspectionFactsDoc.model_json_schema()
 
     prompt = (
@@ -109,11 +197,74 @@ def extract_inspection_facts(
     )
 
 
+
 def extract_thermal_facts(
     *,
     chunks: list[TextChunk],
-    model: str = "llama-3.1-70b-versatile",
+    model: str = "openai/gpt-oss-120b",
 ) -> ThermalFactsDoc:
+    # Handle empty chunks gracefully
+    if not chunks:
+        print("Warning: No thermal chunks provided, returning empty ThermalFactsDoc")
+        return ThermalFactsDoc(
+            source="thermal_report",
+            facts=[],
+            missing_or_unclear_information=["No thermal data available"]
+        )
+    
+    # Validate chunk size and split if necessary
+    total_text_length = sum(len(chunk.text) for chunk in chunks)
+    
+    # If input is too large, process in batches
+    if total_text_length > 12000:
+        print(f"Warning: Thermal chunks total {total_text_length} characters. "
+              f"Splitting into batches to prevent truncation.")
+        
+        # Split chunks into batches
+        batches: list[list[TextChunk]] = []
+        current_batch: list[TextChunk] = []
+        current_length = 0
+        
+        for chunk in chunks:
+            chunk_len = len(chunk.text)
+            if current_batch and current_length + chunk_len > 12000:
+                batches.append(current_batch)
+                current_batch = [chunk]
+                current_length = chunk_len
+            else:
+                current_batch.append(chunk)
+                current_length += chunk_len
+        
+        if current_batch:
+            batches.append(current_batch)
+        
+        print(f"Processing {len(batches)} batches of thermal chunks...")
+        
+        # Process each batch and merge results
+        all_facts = []
+        all_missing = []
+        
+        for i, batch in enumerate(batches, 1):
+            print(f"Processing thermal batch {i}/{len(batches)}...")
+            batch_result = _extract_thermal_facts_single(batch, model)
+            all_facts.extend(batch_result.facts)
+            all_missing.extend(batch_result.missing_or_unclear_information)
+        
+        return ThermalFactsDoc(
+            source="thermal_report",
+            facts=all_facts,
+            missing_or_unclear_information=list(set(all_missing))  # Remove duplicates
+        )
+    
+    # Normal processing for smaller inputs
+    return _extract_thermal_facts_single(chunks, model)
+
+
+def _extract_thermal_facts_single(
+    chunks: list[TextChunk],
+    model: str = "openai/gpt-oss-120b",
+) -> ThermalFactsDoc:
+    """Helper function to extract thermal facts from a single batch of chunks."""
     schema = ThermalFactsDoc.model_json_schema()
 
     prompt = (
@@ -136,3 +287,4 @@ def extract_thermal_facts(
         schema_name="ThermalFactsDoc",
         output_model=ThermalFactsDoc,
     )
+

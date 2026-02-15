@@ -83,3 +83,99 @@ Rules:
 
 Output:
 - `outputs/merged/merged_area_data.json`
+
+## Step 3 — Analytical Reasoning Layer (Controlled LLM)
+
+Purpose: apply **controlled LLM reasoning** over structured data to infer root causes, assign severity, and identify missing information—**without hallucination**.
+
+This layer:
+- Only references facts from `merged_area_data.json`
+- Returns "Not Available" when evidence is insufficient
+- Cites specific evidence (page numbers, quotes) for all inferences
+- Never invents or assumes information
+
+### Run
+
+Ensure your Groq API key is set:
+
+`setx GROQ_API_KEY "<your_key>"`
+
+Then run:
+
+`python run_step3_reasoning.py --merged-data outputs/merged/merged_area_data.json --out outputs/step3`
+
+### Output
+
+- `outputs/step3/analytical_reasoning.json`
+
+Contains for each area:
+- **Root Cause Inference**: probable cause with reasoning, supporting evidence, and confidence level
+- **Severity Assessment**: severity rating (critical/high/medium/low) with risk factors and reasoning
+- **Missing Information**: explicitly identified gaps in the data
+- **Summaries**: inspection and thermal findings summary
+
+### Key Features
+
+**Evidence-Based Reasoning**: Every inference must cite specific quotes or page numbers from source documents.
+
+**Confidence Levels**: `high`, `medium`, `low`, or `insufficient_evidence` based on data quality.
+
+**Conflict Handling**: When inspection and thermal data conflict, both perspectives are presented with evidence.
+
+**No Hallucination**: The LLM is explicitly constrained to only use provided facts. If information is missing, it says "Not Available" rather than guessing.
+
+## Step 4 — DDR Report Generation (Final Output)
+
+Purpose: convert structured analysis into a professional, client-friendly **Detailed Diagnostic Report (DDR)** in multiple formats.
+
+This layer:
+- Uses only facts from `analytical_reasoning.json` (no new facts)
+- Generates reports in Markdown, PDF, and plain text formats
+- Uses simple, client-friendly language
+- Explicitly mentions conflicts and missing information
+- Follows the exact DDR structure required by the assignment
+
+### Run
+
+```bash
+python run_step4_generate_ddr.py \
+  --analysis outputs/step3/analytical_reasoning.json \
+  --out outputs/ddr \
+  --format markdown pdf txt
+```
+
+Options:
+- `--format`: Choose output formats (`markdown`, `pdf`, `txt`, or `all`)
+- `--property-name`: Custom property name for report header
+
+### Output
+
+Generated reports in `outputs/ddr/`:
+- `DDR_Report.md` - Markdown format with rich formatting
+- `DDR_Report.pdf` - Professional PDF for client delivery
+- `DDR_Report.txt` - Plain text for maximum compatibility
+
+### DDR Report Structure
+
+The generated report contains exactly these sections (as required):
+
+1. **Property Issue Summary** - High-level overview, severity counts, key findings
+2. **Area-wise Observations** - Detailed findings for each area, conflicts highlighted
+3. **Probable Root Cause** - Inferred causes with reasoning, evidence, and confidence levels
+4. **Severity Assessment (with Reasoning)** - Severity ratings with risk factors
+5. **Recommended Actions** - Prioritized by severity (Immediate/Short-term/Medium-term/Monitoring)
+6. **Additional Notes** - Cross-cutting observations and general recommendations
+7. **Missing or Unclear Information** - Explicitly listed gaps with impact assessment
+
+### Key Features
+
+**Client-Friendly Language**: Technical jargon avoided, simple explanations provided.
+
+**Evidence Preservation**: All page references and quotes from source documents maintained.
+
+**Conflict Transparency**: Conflicts between inspection and thermal data clearly marked with ⚠️.
+
+**Prioritized Actions**: Recommendations organized by urgency based on severity levels.
+
+**Multiple Formats**: Choose the format that best suits your needs (Markdown for editing, PDF for clients, TXT for compatibility).
+
