@@ -7,7 +7,7 @@ pypdfium2>=4.30.0
 
 # OCR (no external Tesseract dependency)
 rapidocr-onnxruntime==1.2.3
-opencv-python-headless # Added to fix cv2 import error in deployment
+opencv-python-headless>=4.9.0.80
 
 # Data modeling
 pydantic>=2.6.0
@@ -21,7 +21,9 @@ groq>=0.31.0
 # Environment variables
 python-dotenv>=1.0.0
 
-# Step 4: PDF generation (optional)
+# Step 4: Report generation
 markdown>=3.5.0
-weasyprint>=60.0
-dotenv
+reportlab>=4.0.0
+
+# Additional dependencies
+Pillow>=10.0.0
