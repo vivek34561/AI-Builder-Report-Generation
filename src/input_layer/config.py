@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class InputLayerConfig:
-    dpi: int = 220
+    dpi: int = 150  # Reduced from 220 for 2x speed improvement
     ocr_confidence_threshold: float = 0.55
     max_pages: int | None = None
 

@@ -48,14 +48,14 @@ DEFAULT_STEP1_OUTPUT_JSON = (
     / "input_layer_output.json"
 )
 
-# Create tabs for all steps
-tab_step1, tab_step2, tab_merge, tab_step3, tab_step4, tab_complete = st.tabs([
+# Create tabs for all steps - Complete Pipeline first
+tab_complete, tab_step1, tab_step2, tab_merge, tab_step3, tab_step4 = st.tabs([
+    "🚀 Complete Pipeline",
     "📄 Step 1: Extract",
     "🔍 Step 2: Facts",
     "🔀 Merge & Conflicts",
     "🧠 Step 3: Reasoning",
-    "📋 Step 4: DDR Report",
-    "🚀 Complete Pipeline"
+    "📋 Step 4: DDR Report"
 ])
 
 
